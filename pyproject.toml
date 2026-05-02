@@ -1,0 +1,11 @@
+[project]
+name = "my-claude-code"
+version = "0.1.0"
+description = "My version of [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code.git)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=0.25.0",
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0",
+]
