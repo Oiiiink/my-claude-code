@@ -11,3 +11,4 @@ wheels/
 
 # below is for me
 uv.md
+.env
