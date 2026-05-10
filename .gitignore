@@ -12,3 +12,6 @@ wheels/
 # below is for me
 uv.md
 .env
+mistake/
+report/
+change.md

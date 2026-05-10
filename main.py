@@ -2,6 +2,7 @@ import os
 import subprocess
 from anthropic import Anthropic
 from dotenv import load_dotenv
+from pathlib import Path
 
 class bcolors:
     HEADER = '\033[95m'
@@ -24,20 +25,65 @@ MAX_TOKENS = 8000
 SYSTEM = f"""
 You are a coding agent at {os.getcwd()}.
 """
+WORKDIR = Path.cwd().resolve()
 
 TOOLS = [
     {
         "name" : "bash",
-        "description" : "Run a shell command", 
+        "description" : "Run a shell command.", 
         "input_schema": {
             "type": "object",
-            "properties": {"command": {"type": "string"}},
+            "properties": {"command": {"type": "string", "description": "a bash command that is runnable directly."}},
             "required": ["command"],
+            "additionalProperties": False
+        }
+    },
+    {
+        "name" : "read_file",
+        "description" : "Read a file",
+        "input_schema": {
+            "type": "object",
+            "properties": {"path": {"type": "string"}, "limit": {"type": "integer", "description": "max length to read"}},
+            "required": ["path", "limit"],
+            "additionalProperties": False
+        }
+    },
+    {
+        "name": "write_file",
+        "description": "write something into a file",
+        "input_schema": {
+            "type": "object",
+            "properties": {"path": {"type": "string"}, "content": {"type": "string"}},
+            "required": ["path", "content"],
+            "additionalProperties": False
+        }
+    },
+    {
+        "name": "edit_file",
+        "description": "edit part of a file",
+        "input_schema": {
+            "type": "object",
+            "properties": {"path": {"type": "string"}, "old_text": {"type": "string"}, "new_text": {"type": "string"}},
+            "required": ["path", "old_text", "new_text"],
+            "additionalProperties": False
         }
     }
 ]
 
+TOOL_HANDLERS = {
+    "bash" :        lambda **kwargs : run_bash(kwargs["command"]),
+    "read_file" :   lambda **kwargs : run_read(kwargs["path"], kwargs["limit"]),
+    "write_file":   lambda **kwargs : run_write(kwargs["path"], kwargs["content"]),
+    "edit_file" :   lambda **kwargs : run_edit(kwargs["path"], kwargs["old_text"], kwargs["new_text"])
+}
+
 # Tools
+def safe_path(path: str) -> str:
+    fp = (WORKDIR / path).resolve()
+    if not fp.is_relative_to(WORKDIR):
+        raise ValueError(f"Path escape working directory: {fp}")
+    return fp
+
 def run_bash(command: str) -> str:
     dangerous = ["rm -rf /", "sudo", "shutdown", "reboot", "> /dev/"] # Too broad
     if any(d in command for d in dangerous):
@@ -50,6 +96,36 @@ def run_bash(command: str) -> str:
     except subprocess.TimeoutExpired:
         return "Error: Timeout (120s)"
     except (FileNotFoundError, OSError) as e:
+        return f"Error: {e}"
+
+def run_read(path: str, limit: int = None) -> str:
+    try:
+        text = safe_path(path).read_text(encoding="utf-8")
+        lines = text.splitlines()
+        if limit and limit < len(lines):
+            lines = lines[:limit] + [f"... ({len(lines) - limit} more lines)"]
+        return "\n".join(lines)[:50000]
+    except Exception as e:
+        return f"Error: {e}"
+
+def run_write(path: str, content: str) -> str:
+    try:
+        fp = safe_path(path)
+        fp.parent.mkdir(parents=True, exist_ok=True)
+        fp.write_text(content, encoding="utf-8")
+        return f"Wrote {len(content)} bytes to {path}"
+    except Exception as e:
+        return f"Error: {e}"
+
+def run_edit(path: str, old_text: str, new_text: str) -> str:
+    try:
+        fp = safe_path(path)
+        content = fp.read_text(encoding="utf-8")
+        if old_text not in content:
+            return f"Error: Text not found in {path}"
+        fp.write_text(content.replace(old_text, new_text, 1))
+        return f"Edited {path}"
+    except Exception as e:
         return f"Error: {e}"
 
 # Core loop
@@ -69,8 +145,9 @@ def agent_loop(messages : list):
         results = []
         for block in response.content:
             if block.type == 'tool_use':
-                print(bcolors.OKBLUE + block.input["command"] + bcolors.ENDC)
-                output = run_bash(block.input["command"])
+                print(bcolors.OKBLUE + block.input["name"] + bcolors.ENDC)
+                handler = TOOL_HANDLERS.get(block.name)
+                output = handler(**block.input) if handler else f"Unknown Tools, {block.name}"
                 print(output[:200])
                 results.append({"type" : "tool_result", "tool_use_id" : block.id, 
                             "content" : output})
