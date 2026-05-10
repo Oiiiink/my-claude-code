@@ -15,6 +15,41 @@ class bcolors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
+class TodoManager:
+    def __init__(self):
+        self.items = []
+        self.MAX_STEPS = 10
+
+    def update(self, items):
+        if len(items) > self.MAX_STEPS:
+            return f"<ERROR>Too many todo items, max is {self.MAX_STEPS}</ERROR>"
+        validated = []
+        in_progress_count = 0
+        for item in items:
+            if not item.get("id"):
+                return "<ERROR>Todo item must have an id</ERROR>"
+            if not item.get("content"):
+                return "<ERROR>Todo item must have content</ERROR>"
+            if item.get("status") not in ["pending", "in_progress", "done"]:
+                return "<ERROR>Todo item status must be pending, in_progress, or done</ERROR>"
+            validated.append(item)
+            if item["status"] == "in_progress":
+                in_progress_count += 1
+            if in_progress_count > 1:
+                return "<ERROR>Only one todo item can be in_progress at a time</ERROR>"
+        self.items = validated
+
+        return self.render()
+
+    def render(self):
+        if not self.items:
+            return "Todo list is empty."
+        lines = ["Todo List:"]
+        for item in self.items:
+            status_icon = {"pending": "⏳", "in_progress": "🚀", "done": "✅"}.get(item["status"], "")
+            lines.append(f"{status_icon} [{item['id']}] {item['content']}")
+        return "\n".join(lines)
+
 # Config
 load_dotenv(override=True)
 if os.getenv("ANTHROPIC_BASE_URL"):
@@ -26,6 +61,7 @@ SYSTEM = f"""
 You are a coding agent at {os.getcwd()}.
 """
 WORKDIR = Path.cwd().resolve()
+TODO = TodoManager()
 
 TOOLS = [
     {
@@ -43,7 +79,7 @@ TOOLS = [
         "description" : "Read a file",
         "input_schema": {
             "type": "object",
-            "properties": {"path": {"type": "string"}, "limit": {"type": "integer", "description": "max length to read"}},
+            "properties": {"path": {"type": "string"}, "limit": {"type": "integer", "description": "max lines to read"}},
             "required": ["path", "limit"],
             "additionalProperties": False
         }
@@ -67,6 +103,30 @@ TOOLS = [
             "required": ["path", "old_text", "new_text"],
             "additionalProperties": False
         }
+    },
+    {
+        "name": "todo",
+        "description": "manage your todo list for complex task to get better results.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {"type": "string"},
+                            "content": {"type": "string"},
+                            "status": {"type": "string", "enum": ["pending", "in_progress", "done"]}
+                        },
+                        "required": ["id", "content", "status"],
+                        "additionalProperties": False       
+                    }
+                }
+            },
+            "required": ["items"],
+            "additionalProperties": False
+        }
     }
 ]
 
@@ -74,7 +134,8 @@ TOOL_HANDLERS = {
     "bash" :        lambda **kwargs : run_bash(kwargs["command"]),
     "read_file" :   lambda **kwargs : run_read(kwargs["path"], kwargs["limit"]),
     "write_file":   lambda **kwargs : run_write(kwargs["path"], kwargs["content"]),
-    "edit_file" :   lambda **kwargs : run_edit(kwargs["path"], kwargs["old_text"], kwargs["new_text"])
+    "edit_file" :   lambda **kwargs : run_edit(kwargs["path"], kwargs["old_text"], kwargs["new_text"]),
+    "todo" :        lambda **kwargs : TODO.update(kwargs["items"])
 }
 
 # Tools
@@ -130,6 +191,7 @@ def run_edit(path: str, old_text: str, new_text: str) -> str:
 
 # Core loop
 def agent_loop(messages : list):
+    turns_since_todo = 0
     while True:
         response = client.messages.create(
             model=MODEL_ID,
@@ -145,12 +207,17 @@ def agent_loop(messages : list):
         results = []
         for block in response.content:
             if block.type == 'tool_use':
-                print(bcolors.OKBLUE + block.input["name"] + bcolors.ENDC)
+                print(bcolors.OKBLUE + block.name + bcolors.ENDC)
                 handler = TOOL_HANDLERS.get(block.name)
                 output = handler(**block.input) if handler else f"Unknown Tools, {block.name}"
                 print(output[:200])
                 results.append({"type" : "tool_result", "tool_use_id" : block.id, 
                             "content" : output})
+                if block.name == "todo":
+                    turns_since_todo = -1
+        turns_since_todo += 1
+        if turns_since_todo > 5:
+            results.append({"type": "text", "content": "<reminder>Remember to use the todo tool to manage your tasks!</reminder>"})
         messages.append({"role" : "user", "content" : results})
     
 
@@ -167,6 +234,7 @@ if __name__ == "__main__":
         history.append({'role':'user', 'content':query})
         agent_loop(history)
         response = history[-1]['content']
+        print(bcolors.OKGREEN + "Agent Response:" + bcolors.ENDC)
         if isinstance(response, list):
             for block in response:
                 if hasattr(block, 'text'):
