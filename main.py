@@ -201,20 +201,24 @@ def agent_loop(messages : list):
             messages=messages
         )
         messages.append({'role':'assistant', 'content':response.content})
-        if response.stop_reason != 'tool_use':
-            return
+
+        tool_uses = [block for block in response.content if block.type == 'tool_use']
+        if not tool_uses:
+            break
         
         results = []
-        for block in response.content:
-            if block.type == 'tool_use':
-                print(bcolors.OKBLUE + block.name + bcolors.ENDC)
-                handler = TOOL_HANDLERS.get(block.name)
+        for block in tool_uses:
+            print(bcolors.OKBLUE + block.name + bcolors.ENDC)
+            handler = TOOL_HANDLERS.get(block.name)
+            try:
                 output = handler(**block.input) if handler else f"Unknown Tools, {block.name}"
-                print(output[:200])
-                results.append({"type" : "tool_result", "tool_use_id" : block.id, 
-                            "content" : output})
-                if block.name == "todo":
-                    turns_since_todo = -1
+            except Exception as e:
+                output = f"Error executing tool {block.name}: {e}"
+            print(output[:200])
+            results.append({"type" : "tool_result", "tool_use_id" : block.id, 
+                        "content" : output})
+            if block.name == "todo":
+                turns_since_todo = -1
         turns_since_todo += 1
         if turns_since_todo > 5:
             results.append({"type": "text", "content": "<reminder>Remember to use the todo tool to manage your tasks!</reminder>"})
