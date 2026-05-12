@@ -62,8 +62,9 @@ You are a coding agent at {os.getcwd()}.
 """
 WORKDIR = Path.cwd().resolve()
 TODO = TodoManager()
+SUBAGENT_SYSTEM = f"You are a coding subagent at {WORKDIR}. Complete the given task, then summarize your findings."
 
-TOOLS = [
+CHILD_TOOLS = [
     {
         "name" : "bash",
         "description" : "Run a shell command.", 
@@ -130,12 +131,31 @@ TOOLS = [
     }
 ]
 
+TOOLS = CHILD_TOOLS + [
+    {
+        "name" : "task",
+        "description" : "Spawn a subagent with fresh context to reduce context rot. It shares filesystems but not conversation history.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "prompt": {
+                    "type": "string",
+                    "description": "The task prompt for the subagent."
+                }
+            },
+            "required": ["prompt"],
+            "additionalProperties": False
+        }
+    }
+]
+
 TOOL_HANDLERS = {
     "bash" :        lambda **kwargs : run_bash(kwargs["command"]),
     "read_file" :   lambda **kwargs : run_read(kwargs["path"], kwargs["limit"]),
     "write_file":   lambda **kwargs : run_write(kwargs["path"], kwargs["content"]),
     "edit_file" :   lambda **kwargs : run_edit(kwargs["path"], kwargs["old_text"], kwargs["new_text"]),
-    "todo" :        lambda **kwargs : TODO.update(kwargs["items"])
+    "todo" :        lambda **kwargs : TODO.update(kwargs["items"]),
+    "task" :        lambda **kwargs : run_subagent(kwargs["prompt"])
 }
 
 # Tools
@@ -189,6 +209,41 @@ def run_edit(path: str, old_text: str, new_text: str) -> str:
     except Exception as e:
         return f"Error: {e}"
 
+def run_subagent(prompt: str) -> str:
+    sub_history = [{"role": "user", "content": prompt}]
+
+    turns_since_todo = 0
+    for _ in range(30):
+        response = client.messages.create(
+            model=MODEL_ID, max_tokens=MAX_TOKENS, system=SUBAGENT_SYSTEM,
+            tools=CHILD_TOOLS, messages=sub_history
+        )
+
+        sub_history.append({"role": "assistant", "content": response.content})
+        tool_uses = [b for b in response.content if b.type == "tool_use"]
+
+        if not tool_uses:
+            break
+
+        results = []
+        for block in tool_uses:
+            handler = TOOL_HANDLERS.get(block.name)
+            try:
+                output = handler(**block.input) if handler else f"Unknown Tools, {block.name}"
+            except Exception as e:
+                output = f"Error executing tool {block.name}: {e}"
+            print(output[:200])
+            results.append({"type" : "tool_result", "tool_use_id" : block.id, 
+                        "content" : output})
+            if block.name == "todo":
+                turns_since_todo = -1
+        turns_since_todo += 1
+        if turns_since_todo > 5:
+            results.append({"type": "text", "content": "<reminder>Remember to use the todo tool to manage your tasks!</reminder>"})
+        sub_history.append({"role" : "user", "content" : results})
+    
+    return "".join(b.text for b in response.content if hasattr(b, "text")) or "(no summary)"
+
 # Core loop
 def agent_loop(messages : list):
     turns_since_todo = 0
@@ -211,6 +266,7 @@ def agent_loop(messages : list):
             print(bcolors.OKBLUE + block.name + bcolors.ENDC)
             handler = TOOL_HANDLERS.get(block.name)
             try:
+                print(block.input)
                 output = handler(**block.input) if handler else f"Unknown Tools, {block.name}"
             except Exception as e:
                 output = f"Error executing tool {block.name}: {e}"
