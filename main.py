@@ -2,6 +2,8 @@ import os
 import subprocess
 import re
 import yaml
+import time
+import json
 from anthropic import Anthropic
 from dotenv import load_dotenv
 from pathlib import Path
@@ -104,6 +106,7 @@ class SkillLoader:
 # Config
 WORKDIR = Path.cwd().resolve()
 SKILL_DIR = WORKDIR / ".skills"
+TRANSCRIPT_DIR = WORKDIR / ".transcripts"
 TODO = TodoManager()
 SKILL_LOADER = SkillLoader(SKILL_DIR)
 load_dotenv(override=True)
@@ -126,6 +129,10 @@ Use load_skill to access specialized knowledge before tackling unfamiliar topics
 Skills available:
 {SKILL_LOADER.get_descriptions()}
 """
+
+THRESHOLD = 200000
+KEEP_RECENT = 3
+PRESERVE_RESULT_TOOLS = {"read_file"}
 
 CHILD_TOOLS = [
     {
@@ -219,7 +226,17 @@ TOOLS = CHILD_TOOLS + [
             "required": ["prompt"],
             "additionalProperties": False
         }
-    }
+    },
+        {
+        "name": "compact",
+        "description": "Trigger manual conversation compression to reduce context window usage.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"focus": {"type": "string", "description": "what to preserve in the summary."}},
+            "required": [],
+            "additionalProperties": False
+        }
+    },
 ]
 
 TOOL_HANDLERS = {
@@ -229,7 +246,8 @@ TOOL_HANDLERS = {
     "edit_file" :   lambda **kwargs : run_edit(kwargs["path"], kwargs["old_text"], kwargs["new_text"]),
     "todo" :        lambda **kwargs : TODO.update(kwargs["items"]),
     "load_skill" :  lambda **kwargs : SKILL_LOADER.get_content(kwargs["name"]),
-    "task" :        lambda **kwargs : run_subagent(kwargs["prompt"])
+    "task" :        lambda **kwargs : run_subagent(kwargs["prompt"]),
+    "compact":      lambda **kwargs : "Manual compression requested.",
 }
 
 # Tools
@@ -318,10 +336,68 @@ def run_subagent(prompt: str) -> str:
     
     return "".join(b.text for b in response.content if hasattr(b, "text")) or "(no summary)"
 
+def estimate_tokens(messages: list) -> int:
+    return len(str(messages)) // 4
+
+def micro_compact(messages: list):
+    tool_name_map = {}
+    tool_results = []
+
+    for msg in messages:
+        if msg["role"] == "assistant" and isinstance(msg.get("content"), list):
+            for block in msg["content"]:
+                if getattr(block, "type", None) == "tool_use":
+                    tool_name_map[block.id] = block.name
+
+        if msg["role"] == "user" and isinstance(msg.get("content"), list):
+            for block in msg["content"]:
+                if isinstance(block, dict) and block.get("type") == "tool_result":
+                    tool_results.append(block)
+
+    for result in tool_results[:-KEEP_RECENT]:
+        content = result.get("content", "")
+        tool_name = tool_name_map.get(result.get("tool_use_id"), "")
+
+        if (
+            tool_name
+            and isinstance(content, str)
+            and len(content) > 100
+            and tool_name not in PRESERVE_RESULT_TOOLS
+        ):
+            result["content"] = f"[Previous: used {tool_name}]"
+
+def auto_compact(messages: list, focus: str|None=None) -> list:
+    focus = "no focus" if not focus else focus
+    TRANSCRIPT_DIR.mkdir(exist_ok=True)
+    transcript_path = TRANSCRIPT_DIR / f"transcript_{int(time.time())}.jsonl"
+    with open(transcript_path, "w", encoding="utf-8") as f:
+        f.write('\n'.join(json.dumps(msg, default=str) for msg in messages))
+
+    print(bcolors.OKBLUE + f"transcript saved in {transcript_path}" + bcolors.ENDC)
+
+    conversation_text = json.dumps(messages, default=str)[-80000:]
+    response = client.messages.create(
+        model=MODEL_ID,
+        max_tokens=MAX_TOKENS//4,
+        messages=[{"role":"user", "content":
+                    "Summarize this conversation for continuity. Include: "
+                    "1) What was accomplished, 2) Current state, 3) Key decisions made. 4) What to do next"
+                    f"Focus: {focus}. Be concise but preserve critical details.\n\n" + conversation_text}]
+    )
+
+    summary = next((block.text for block in response.content if hasattr(block, "text")), "")
+    if not summary:
+        summary = "(no summary)"
+    return [{"role": "user", "content": f"[Conversation compressed] transcript path:{transcript_path}\n\n{summary}"}]
+
 # Core loop
 def agent_loop(messages : list):
     turns_since_todo = 0
     while True:
+        micro_compact(messages)
+        if estimate_tokens(messages) >= THRESHOLD:
+            print(bcolors.OKBLUE + "[auto compact triggers]" + bcolors.ENDC)
+            messages[:] = auto_compact(messages)
         response = client.messages.create(
             model=MODEL_ID,
             max_tokens=MAX_TOKENS,
@@ -336,6 +412,7 @@ def agent_loop(messages : list):
             break
         
         results = []
+        manual_compact = False
         for block in tool_uses:
             print(bcolors.OKBLUE + block.name + bcolors.ENDC)
             handler = TOOL_HANDLERS.get(block.name)
@@ -349,10 +426,17 @@ def agent_loop(messages : list):
                         "content" : output})
             if block.name == "todo":
                 turns_since_todo = -1
+            elif block.name == "compact":
+                manual_compact = True
+                compact_focus = block.input.get("focus")
         turns_since_todo += 1
         if turns_since_todo > 5:
             results.append({"type": "text", "text": "<reminder>Remember to use the todo tool to manage your tasks!</reminder>"})
         messages.append({"role" : "user", "content" : results})
+
+        if manual_compact:
+            print(bcolors.OKBLUE + "[manual compact]" + bcolors.ENDC)
+            messages[:] = auto_compact(messages, compact_focus)
     
 
 if __name__ == "__main__":
