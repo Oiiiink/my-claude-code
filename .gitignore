@@ -1,0 +1,30 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# below is for me
+uv.md
+.env
+mistake/
+report/
+change.md
+tmp/
+log.txt
+bugs/
+.skills
+.tasks/
+s_full.py
+JD.png
+internship-al*.md
+.team
+
+# Codex
+.agents/*
+.codex/

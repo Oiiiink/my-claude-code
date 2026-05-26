@@ -18,6 +18,17 @@ My version of [learn-claude-code](https://github.com/shareAI-lab/learn-claude-co
 
 Start with a minimal runnable prototype. Then iterate on it by improving the core agent workflow, making the system more complete, and adding memory modules.
 
-This is my main project for pursuing AI Agent internships, so development should prioritize practical, demonstrable agent capabilities over unnecessary architectural complexity. 
+This is my main project for pursuing AI Agent internships, so development should prioritize practical, demonstrable agent capabilities over unnecessary architectural complexity.
 
 More details in `internship-alignment-plan.md`
+
+## Wiki Protocol
+
+This repo has a repo-scoped LLM-maintained wiki at `.agents/llm_wiki/`.
+
+- Read `.agents/llm_wiki/index.md` before non-trivial architecture, refactor, debugging, roadmap, memory, multi-agent, or evaluation work.
+- Update `.agents/llm_wiki/` when a stable project fact, design decision, bug lesson, roadmap state, or evaluation conclusion changes.
+- Append one entry to `.agents/llm_wiki/log.md` for every wiki update.
+- If a relevant task does not need a wiki update, say `wiki unchanged: <reason>` in the final response.
+- Keep `tmp/` for temporary run artifacts. Promote only stable conclusions into the wiki.
+- Keep `../learn-claude-code` read-only and treat it as upstream/reference, not as proof of this repo's current behavior.
