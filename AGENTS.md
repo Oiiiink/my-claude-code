@@ -7,6 +7,8 @@ My version of [learn-claude-code](https://github.com/shareAI-lab/learn-claude-co
 - tmp/ contains temporary files.
 - ../learn-claude-code contains the lcc repo. Read-Only for you.
 
+use pi [agent](https://github.com/earendil-works/pi) as golden standard.
+
 ## Answering Style
 
 - use elegant, minimal implementations.
