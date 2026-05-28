@@ -13,6 +13,7 @@ LEAD_TOOL_NAMES = [
     "edit_file",
     "todo",
     "load_skill",
+    "subagent",
     "task_create",
     "task_update",
     "task_list",

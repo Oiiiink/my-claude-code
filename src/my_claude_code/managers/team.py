@@ -3,9 +3,8 @@ import threading
 import json
 import uuid
 
-from my_claude_code.managers import MessageBus, create_managers
-from my_claude_code.runtime import create_runtime
-from my_claude_code.config import MAIN_NAME
+from my_claude_code.managers.message_bus import MessageBus
+from my_claude_code.managers.registry import create_managers
 
 class TeamManager:
     def __init__(self, team_dir: Path):
@@ -57,16 +56,18 @@ class TeamManager:
         return f"Teammate {name} is start working"
     
     def _teammate_loop(self, name: str, prompt: str, model_id: str, work_dir: Path, bus: MessageBus):
-        
-        teammate = create_runtime(name, role="teammate", model_id=model_id, workdir=work_dir, 
+        from my_claude_code.runtime import create_runtime
+        teammate = create_runtime(name, role="teammate", model_id=model_id, workdir=work_dir,
                                   managers=create_managers("teammate"))
         teammate.bus = bus
+        teammate.team = self
         teammate.history.append({"role": "user", "content": prompt})
         while True:
-            if me["status"] != "working":
+            me = self._find_member(name)
+            if not me or me["status"] != "working":
                 break
             teammate.agent_loop()
-                
+
             me = self._find_member(name)
             if me and me["status"] != "shutdown":
                 me["status"] = "idle"
@@ -79,6 +80,7 @@ class TeamManager:
         return [m["name"] for m in self.config["members"]]
 
     def send_shutdown_request(self, bus: MessageBus, sender: str, to: str) -> str:
+        from my_claude_code.config import MAIN_NAME
         if sender != MAIN_NAME:
             return f"<ERROR>You have no permission to shutdown teammates.</ERROR>"
         req_id = str(uuid.uuid4())[:8]
@@ -106,6 +108,7 @@ class TeamManager:
         return f"Shutdown {'approved' if approve else 'rejected'}"
 
     def send_plan_request(self, bus: MessageBus, sender: str, to: str, content: str) -> str:
+        from my_claude_code.config import MAIN_NAME
         if sender == MAIN_NAME:
             return f"Let teammates do their work. Don't plan for them."
         if to != MAIN_NAME:

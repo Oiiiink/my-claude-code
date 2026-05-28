@@ -1,6 +1,8 @@
 from pathlib import Path
 import os
 
+from dotenv import load_dotenv
+
 class bcolors:
     HEADER = '\033[95m'
     OKBLUE = '\033[94m'
@@ -14,6 +16,9 @@ class bcolors:
 
 MAIN_NAME = "main"
 # Runtime
+load_dotenv(override=True)
+if os.getenv("ANTHROPIC_BASE_URL"):
+    os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
 MODEL_ID = os.environ["MODEL"]
 WORKDIR = Path.cwd().resolve()
 SKILL_DIR = WORKDIR / ".skills"

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 
+from my_claude_code.config import MAIN_NAME
 from my_claude_code.tools.context import ToolContext, ToolSpec, object_schema
-from my_claude_code.runtime import create_runtime
 from my_claude_code.managers import create_managers
 
 
@@ -17,6 +17,7 @@ VALID_MSG_TYPES = {
 }
 
 def run_subagent(ctx, prompt: str, max_turn: int = 50) -> str:
+    from my_claude_code.runtime import create_runtime
     subagent = create_runtime("subagent", role="subagent", model_id=ctx.runtime.model_id, workdir=ctx.workdir,
                               managers=create_managers("subagent"),
                               max_tokens=ctx.runtime.max_tokens // 4, max_turn=max_turn)
@@ -68,7 +69,7 @@ def shutdown_response(
 
 
 def plan_request(ctx: ToolContext, plan: str) -> str:
-    return ctx.runtime.team.send_plan_request(ctx.runtime.bus, ctx.actor, "lead", plan)
+    return ctx.runtime.team.send_plan_request(ctx.runtime.bus, ctx.actor, MAIN_NAME, plan)
 
 
 def plan_response(

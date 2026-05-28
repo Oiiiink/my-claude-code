@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import json
 import os
 from anthropic import Anthropic
 
@@ -74,7 +75,7 @@ class Runtime:
                 print(bcolors.OKBLUE + block.name + bcolors.ENDC)
                 try:
                     print(block.input)
-                    output = execute_tool(tool_ctx, block.name, **block.input)
+                    output = execute_tool(tool_ctx, block.name, block.input)
                 except Exception as e:
                     output = f"<ERROR>Error executing tool {block.name}: {e}</ERROR>"
                 print(output[:200])
@@ -122,16 +123,16 @@ class Runtime:
             self.history.append({"role": "user", "content": f"<background-results>\n{notif_text}\n</background-results>"})
 
     def _inbox_notification(self):
-        if self.bus is None:
+        if self.bus is None and self.role == "lead":
             return
         
         inbox = self.bus.read_inbox(self.name)
         if inbox:
-            inbox_text = "\n".join(inbox)
+            inbox_text = "\n".join(json.dumps(m, ensure_ascii=False) for m in inbox)
             self.history.append({"role": "user", "content": f"<inbox>\n{inbox_text}\n</inbox>"})
 
-    def print_last_response(self, history: list) -> None:
-        response = history[-1]['content']
+    def print_last_response(self) -> None:
+        response = self.history[-1]['content']
         if isinstance(response, list):
             for block in response:
                 if hasattr(block, 'text'):
@@ -153,9 +154,6 @@ def create_runtime(
     background = BackgroundManager() if all or "background" in managers else None
     team = TeamManager(TEAM_DIR) if all or "team" in managers else None
     bus = MessageBus(INBOX_DIR) if all or "team" in managers else None
-    load_dotenv(override=True)
-    if os.getenv("ANTHROPIC_BASE_URL"):
-        os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
     client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
     return Runtime(
         model_id=model_id,

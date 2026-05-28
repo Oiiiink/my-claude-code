@@ -8,11 +8,11 @@ from my_claude_code.managers.message_bus import MessageBus
 from my_claude_code.managers.registry import create_managers
 
 __all__ = [
-    TodoManager,
-    SkillLoader,
-    TaskManager,
-    BackgroundManager,
-    TeamManager,
-    MessageBus,
-    create_managers,   
+    'TodoManager',
+    'SkillLoader',
+    'TaskManager',
+    'BackgroundManager',
+    'TeamManager',
+    'MessageBus',
+    'create_managers',
 ]
