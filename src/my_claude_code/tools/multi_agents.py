@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 
 from my_claude_code.tools.context import ToolContext, ToolSpec, object_schema
+from my_claude_code.runtime import create_runtime
+from my_claude_code.managers import create_managers
 
 
 VALID_MSG_TYPES = {
@@ -14,9 +16,18 @@ VALID_MSG_TYPES = {
     "plan_response",
 }
 
+def run_subagent(ctx, prompt: str, max_turn: int = 50) -> str:
+    subagent = create_runtime("subagent", role="subagent", model_id=ctx.runtime.model_id, workdir=ctx.workdir,
+                              managers=create_managers("subagent"),
+                              max_tokens=ctx.runtime.max_tokens // 4, max_turn=max_turn)
+    subagent.history.append({"role": "user", "content": prompt})
+    subagent.agent_loop()
+    
+    return "".join(b.text for b in subagent.history[-1].content if hasattr(b, "text")) or "(no summary)"
 
-def spawn_teammate(ctx: ToolContext, name: str, role: str, prompt: str) -> str:
-    return ctx.runtime.team.spawn(name, role, prompt)
+
+def spawn_teammate(ctx: ToolContext, name: str, prompt: str) -> str:
+    return ctx.runtime.team.spawn(name, prompt, ctx.runtime.model_id, ctx.workdir, ctx.runtime.bus)
 
 
 def list_teammates(ctx: ToolContext) -> str:
@@ -28,8 +39,11 @@ def send_message(
     to: str,
     content: str,
     msg_type: str = "message",
+    extra: dict | None = None,
 ) -> str:
-    return ctx.runtime.bus.send(ctx.actor, to, content, msg_type)
+    if msg_type not in VALID_MSG_TYPES:
+        return f"<ERROR>Invalid message type '{msg_type}'. Valid types are: {', '.join(VALID_MSG_TYPES)}</ERROR>"
+    return ctx.runtime.bus.send(ctx.actor, to, content, msg_type, extra)
 
 
 def read_inbox(ctx: ToolContext) -> str:
@@ -41,7 +55,7 @@ def broadcast(ctx: ToolContext, content: str) -> str:
 
 
 def shutdown_request(ctx: ToolContext, name: str) -> str:
-    return ctx.runtime.team.send_shutdown_request(ctx.actor, name)
+    return ctx.runtime.team.send_shutdown_request(ctx.runtime.bus, ctx.actor, name)
 
 
 def shutdown_response(
@@ -50,11 +64,11 @@ def shutdown_response(
     approve: bool,
     reason: str | None = None,
 ) -> str:
-    return ctx.runtime.team.handle_shutdown_request(ctx.actor, request_id, approve, reason)
+    return ctx.runtime.team.handle_shutdown_request(ctx.runtime.bus, ctx.actor, request_id, approve, reason)
 
 
 def plan_request(ctx: ToolContext, plan: str) -> str:
-    return ctx.runtime.team.send_plan_request(ctx.actor, "lead", plan)
+    return ctx.runtime.team.send_plan_request(ctx.runtime.bus, ctx.actor, "lead", plan)
 
 
 def plan_response(
@@ -63,24 +77,34 @@ def plan_response(
     approve: bool,
     feedback: str | None = None,
 ) -> str:
-    return ctx.runtime.team.handle_plan_request(ctx.actor, request_id, approve, feedback or "")
+    return ctx.runtime.team.handle_plan_request(ctx.runtime.bus, ctx.actor, request_id, approve, feedback or "")
 
 
 def request_check(ctx: ToolContext, request_id: str) -> str:
     return ctx.runtime.team.check_request_status(ctx.actor, request_id)
 
-
 SPECS = [
+    ToolSpec(
+        name="subagent",
+        description="Spawn a subagent with fresh context to reduce context rot. It shares filesystems but not conversation history.",
+        input_schema=object_schema(
+            {
+                "prompt": {"type": "string", "description": "The task prompt for the subagent."},
+                "max_turn": {"type": "integer", "description": "The maximum number of conversation turns for the subagent before it is forcefully terminated.", "default": 50},
+            },
+            ["prompt"],
+        ),
+        handler=run_subagent,
+    ),
     ToolSpec(
         name="spawn_teammate",
         description="Spawn a persistent teammate, or recall an idle teammate with the same name.",
         input_schema=object_schema(
             {
                 "name": {"type": "string"},
-                "role": {"type": "string"},
                 "prompt": {"type": "string"},
             },
-            ["name", "role", "prompt"],
+            ["name", "prompt"],
         ),
         handler=spawn_teammate,
     ),

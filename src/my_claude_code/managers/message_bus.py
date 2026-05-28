@@ -1,5 +1,6 @@
 import time
 import json
+from pathlib import Path
 
 class MessageBus:
     def __init__(self, inbox_dir: Path):
@@ -7,9 +8,6 @@ class MessageBus:
         self.inbox.mkdir(exist_ok=True)
 
     def send(self, sender: str, to:str, content: str, msg_type: str = "message", extra: dict = None) -> str:
-        if msg_type not in VALID_MSG_TYPES:
-            return f"<ERROR>Invalid message type: {msg_type}. Valid type: {str(VALID_MSG_TYPES)}</ERROR>"
-        
         msg = {
             "from": sender,
             "content": content,

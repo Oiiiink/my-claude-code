@@ -28,3 +28,4 @@ notions/
 # Codex
 .agents/*
 .codex/
+.claude

@@ -3,7 +3,6 @@ from my_claude_code.runtime import create_runtime
 
 def main() -> None:
     runtime = create_runtime()
-    history = []
 
     while True:
         try:
@@ -13,7 +12,7 @@ def main() -> None:
         if query.strip().lower() in ['q', 'quit', '']:
             print(bcolors.HEADER + 'agent ended' + bcolors.ENDC)
             break
-        history.append({'role':'user', 'content':query})
-        runtime.agent_loop(history)
+        runtime.history.append({'role':'user', 'content':query})
+        runtime.agent_loop()
         print(bcolors.HEADER + "Agent Response:" + bcolors.ENDC)
-        runtime.print_last_response(history)
+        runtime.print_last_response()

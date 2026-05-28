@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 
 class bcolors:
     HEADER = '\033[95m'
@@ -11,7 +12,9 @@ class bcolors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
+MAIN_NAME = "main"
 # Runtime
+MODEL_ID = os.environ["MODEL"]
 WORKDIR = Path.cwd().resolve()
 SKILL_DIR = WORKDIR / ".skills"
 TRANSCRIPT_DIR = WORKDIR / ".transcripts"
@@ -21,3 +24,7 @@ INBOX_DIR = TEAM_DIR / "inbox"
 
 DEFAULT_MAX_TOKEN = 8000
 DEFAULT_CTX_THRESHOLD = 200000
+
+# Compaction
+KEEP_RECENT = 5
+PRESERVE_RESULT_TOOLS = []
