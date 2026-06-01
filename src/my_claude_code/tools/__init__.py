@@ -1,4 +1,4 @@
-from my_claude_code.tools.context import Role, ToolContext, ToolSpec
+from my_claude_code.tools.contracts import Role, ToolContext, ToolSpec
 from my_claude_code.tools.registry import (
     TOOL_REGISTRY,
     TOOLS_BY_ROLE,

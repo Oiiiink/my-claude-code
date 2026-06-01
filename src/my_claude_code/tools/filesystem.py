@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from my_claude_code.tools.context import ToolContext, ToolResult, ToolSpec, ToolCall, ToolCheck, object_schema
+from my_claude_code.tools.contracts import ToolContext, ToolResult, ToolSpec, ToolCall, ToolCheck, object_schema
 from my_claude_code.tools.utils import check_paras
 
 MAX_FILE_OUTPUT_CHARS = 50_000

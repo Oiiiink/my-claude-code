@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from my_claude_code.tools.context import Role, ToolCall, ToolContext, ToolSpec, ToolResult, ToolCheck
+from my_claude_code.tools.contracts import Role, ToolCall, ToolContext, ToolSpec, ToolResult, ToolCheck
 from my_claude_code.tools import filesystem, multi_agents, shell, skills, task_board, todo, compaction
 
 

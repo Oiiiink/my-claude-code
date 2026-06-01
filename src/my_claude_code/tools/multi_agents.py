@@ -1,9 +1,10 @@
+# Ignored now
 from __future__ import annotations
 
 import json
 
 from my_claude_code.config import MAIN_NAME
-from my_claude_code.tools.context import ToolContext, ToolSpec, object_schema
+from my_claude_code.tools.contracts import ToolContext, ToolSpec, object_schema
 from my_claude_code.managers import get_managers
 
 

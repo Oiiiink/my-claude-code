@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from my_claude_code.tools.context import ToolContext, ToolSpec, object_schema
+from my_claude_code.tools.contracts import ToolContext, ToolSpec, object_schema
 
 
 def load_skill(ctx: ToolContext, name: str) -> str:

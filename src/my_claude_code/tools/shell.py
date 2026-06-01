@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import subprocess
 
-from my_claude_code.tools.context import ToolContext, ToolSpec, object_schema
+from my_claude_code.tools.contracts import ToolContext, ToolSpec, object_schema
 
 
 MAX_COMMAND_OUTPUT_CHARS = 50_000

@@ -1,6 +1,6 @@
 from typing import Any
 
-from my_claude_code.tools.context import ToolCall
+from my_claude_code.tools.contracts import ToolCall
 
 JSONSchema = dict[str, Any]
 
