@@ -4,7 +4,7 @@ import json
 
 from my_claude_code.config import MAIN_NAME
 from my_claude_code.tools.context import ToolContext, ToolSpec, object_schema
-from my_claude_code.managers import create_managers
+from my_claude_code.managers import get_managers
 
 
 VALID_MSG_TYPES = {
@@ -19,7 +19,7 @@ VALID_MSG_TYPES = {
 def run_subagent(ctx, prompt: str, max_turn: int = 50) -> str:
     from my_claude_code.runtime import create_runtime
     subagent = create_runtime("subagent", role="subagent", model_id=ctx.runtime.model_id, workdir=ctx.workdir,
-                              managers=create_managers("subagent"),
+                              managers=get_managers("subagent"),
                               max_tokens=ctx.runtime.max_tokens // 4, max_turn=max_turn)
     subagent.history.append({"role": "user", "content": prompt})
     subagent.agent_loop()

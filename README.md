@@ -8,6 +8,14 @@ This project should grow into a minimal Coding Agent Engineering Harness: a runn
 
 See [report/internship-alignment-plan.md](report/internship-alignment-plan.md) for the roadmap aligned with `JD.png`.
 
+## What's next
+
+- hooks for safety
+- logging for replay
+- evaluation for performance
+
+`Hide multi-agent first`
+
 ## NOTES
 
 - current teammate runs just one turn.

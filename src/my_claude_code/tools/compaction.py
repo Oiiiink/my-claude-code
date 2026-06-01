@@ -1,4 +1,4 @@
-from my_claude_code.tools.context import ToolContext, ToolSpec, object_schema
+from my_claude_code.tools.context import ToolContext, ToolSpec, object_schema, ToolCheck, ToolCall
 from my_claude_code.compaction.compaction import estimate_tokens
 
 def compact(ctx: ToolContext, focus: str):

@@ -4,7 +4,7 @@ import json
 import uuid
 
 from my_claude_code.managers.message_bus import MessageBus
-from my_claude_code.managers.registry import create_managers
+from my_claude_code.managers.registry import get_managers
 
 class TeamManager:
     def __init__(self, team_dir: Path):
@@ -58,7 +58,7 @@ class TeamManager:
     def _teammate_loop(self, name: str, prompt: str, model_id: str, work_dir: Path, bus: MessageBus):
         from my_claude_code.runtime import create_runtime
         teammate = create_runtime(name, role="teammate", model_id=model_id, workdir=work_dir,
-                                  managers=create_managers("teammate"))
+                                  managers=get_managers("teammate"))
         teammate.bus = bus
         teammate.team = self
         teammate.history.append({"role": "user", "content": prompt})

@@ -5,7 +5,7 @@ from my_claude_code.managers.background import BackgroundManager
 from my_claude_code.managers.team import TeamManager
 from my_claude_code.managers.message_bus import MessageBus
 
-from my_claude_code.managers.registry import create_managers
+from my_claude_code.managers.registry import get_managers
 
 __all__ = [
     'TodoManager',
@@ -14,5 +14,5 @@ __all__ = [
     'BackgroundManager',
     'TeamManager',
     'MessageBus',
-    'create_managers',
+    'get_managers',
 ]

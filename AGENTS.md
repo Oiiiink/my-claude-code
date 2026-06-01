@@ -33,4 +33,3 @@ This repo has a repo-scoped LLM-maintained wiki at `.agents/llm_wiki/`.
 - Append one entry to `.agents/llm_wiki/log.md` for every wiki update.
 - If a relevant task does not need a wiki update, say `wiki unchanged: <reason>` in the final response.
 - Keep `tmp/` for temporary run artifacts. Promote only stable conclusions into the wiki.
-- Keep `../learn-claude-code` read-only and treat it as upstream/reference, not as proof of this repo's current behavior.

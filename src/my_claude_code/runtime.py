@@ -23,6 +23,7 @@ from my_claude_code.config import (
 from my_claude_code.managers import *
 from my_claude_code.tools import *
 from my_claude_code.compaction import *
+from my_claude_code.tools.registry import run_tool_call, ToolCall
 
 @dataclass
 class Runtime:
@@ -64,23 +65,18 @@ class Runtime:
             )
             messages.append({'role':'assistant', 'content':response.content})
 
-            tool_uses = [block for block in response.content if block.type == 'tool_use']
-            if not tool_uses:
+            tool_calls = [block for block in response.content if block.type == 'tool_use']
+            if not tool_calls:
                 break
             
             results = []
             manual_compact = False
             tool_ctx = ToolContext(actor=self.name, role=self.role, runtime=self, workdir=self.workdir)
-            for block in tool_uses:
+            for block in tool_calls:
                 print(bcolors.OKBLUE + block.name + bcolors.ENDC)
-                try:
-                    print(block.input)
-                    output = execute_tool(tool_ctx, block.name, block.input)
-                except Exception as e:
-                    output = f"<ERROR>Error executing tool {block.name}: {e}</ERROR>"
-                print(output[:200])
-                results.append({"type" : "tool_result", "tool_use_id" : block.id, 
-                            "content" : output})
+                tool_call = ToolCall(name=block.name, input=block.input, id=block.id)
+                tool_result = run_tool_call(tool_ctx, tool_call)
+                results.append(tool_result.to_anthropic_tool_result())
                 if block.name == "todo":
                     turns_since_todo = -1
                 elif block.name == "compact":
@@ -143,7 +139,7 @@ def create_runtime(
     role: str="lead",
     model_id: str=MODEL_ID,
     workdir: Path=WORKDIR,
-    managers: list[str]=[],
+    managers: list[str]=get_managers("lead"),
     max_tokens: int=DEFAULT_MAX_TOKEN,
     max_turn: int=None,
     )-> Runtime:

@@ -28,5 +28,5 @@ MANAGERS_BY_ROLE: dict[Role, list[str]] = {
     "teammate": TEAMMATE_MANAGERS,
 }
 
-def create_managers(role: Role) -> list[str]:
+def get_managers(role: Role) -> list[str]:
     return MANAGERS_BY_ROLE.get(role, [])

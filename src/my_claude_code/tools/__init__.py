@@ -3,8 +3,11 @@ from my_claude_code.tools.registry import (
     TOOL_REGISTRY,
     TOOLS_BY_ROLE,
     build_tools,
-    execute_tool,
+    execute_tool_call,
+    finalize_tool_call,
     get_tool_spec,
+    prepare_tool_call,
+    run_tool_call,
 )
 
 __all__ = [
@@ -14,6 +17,9 @@ __all__ = [
     "TOOL_REGISTRY",
     "TOOLS_BY_ROLE",
     "build_tools",
-    "execute_tool",
+    "execute_tool_call",
+    "finalize_tool_call",
     "get_tool_spec",
+    "prepare_tool_call",
+    "run_tool_call",
 ]
