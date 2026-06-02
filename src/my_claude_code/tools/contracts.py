@@ -42,6 +42,7 @@ class ToolCheck:
     tool_name: str
     tool_call_id: str
     valid: bool
+    needs_approval: bool = False
     error: str | None = None
 
 @dataclass

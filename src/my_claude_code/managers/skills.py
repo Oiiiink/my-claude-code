@@ -48,5 +48,5 @@ class SkillLoader:
         """Layer 2 : get full skill body if the modle use load_skill"""
         skill = self.skills.get(name)
         if not skill:
-            return f"ERROR: Unknown skill {name}. Available: {',.'.join(self.skills.keys())}"
+            return f"<ERROR> Unknown skill {name}. Available: {',.'.join(self.skills.keys())}</ERROR>"
         return f"<skill name=\"{name}\">\n{skill['body']}\n</skill>"

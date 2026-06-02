@@ -1,3 +1,4 @@
+from pathlib import Path
 import threading
 import subprocess
 import uuid
@@ -8,21 +9,21 @@ class BackgroundManager:
         self._notification_queue = []
         self._lock = threading.Lock()
 
-    def run(self, command: str) -> str:
+    def run(self, command: str, cwd: Path) -> str:
         task_id = str(uuid.uuid4())[:8]
         with self._lock:
             self.tasks[task_id] = {
-                "status": "running", "result": None, "command": command
+                "status": "running", "result": None, "command": command, "cwd": cwd
             }
-        thread = threading.Thread(target=self._execute, args=(task_id, command), daemon=True)
+        thread = threading.Thread(target=self._execute, args=(task_id, command, cwd), daemon=True)
         thread.start()
 
         return f"Background task {task_id} started: {command[:80]}"
     
-    def _execute(self, task_id: str, command: str):
+    def _execute(self, task_id: str, command: str, cwd: Path):
         try:
             r = subprocess.run(
-                command, shell=True, cwd=WORKDIR,
+                command, shell=True, cwd=cwd,
                 capture_output=True, text=True, timeout=300
             )
             output = (r.stdout + r.stderr).strip()[:50000]
@@ -49,7 +50,7 @@ class BackgroundManager:
             with self._lock:
                 t = self.tasks.get(task_id)
             if not t:
-                return f"Unknow task {task_id}"
+                return f"<ERROR>Unknown task {task_id}</ERROR>"
             return f"{t['status']} {t['command']} : {t['result'] or '(running)'}"
         lines = []
         with self._lock:

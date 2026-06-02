@@ -3,8 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from my_claude_code.tools.contracts import ToolContext, ToolResult, ToolSpec, ToolCall, ToolCheck, object_schema
-from my_claude_code.tools.utils import check_paras
+from my_claude_code.tools.contracts import ToolContext, ToolSpec, ToolCall, ToolCheck, object_schema
 
 MAX_FILE_OUTPUT_CHARS = 50_000
 
@@ -37,13 +36,6 @@ def _permission_check(operation: str, path: Path) -> None:
         raise ValueError(f"Unknown file operation: {operation}")
 
 def fs_prepare(ctx: ToolContext, tool_call: ToolCall) -> ToolCheck:
-    # Check parameters
-    try:
-        check_paras(tool_call, SPECS_BY_NAME[tool_call.name].input_schema)
-    except Exception as e:
-        return ToolCheck(tool_name=tool_call.name, tool_call_id=tool_call.id, valid=False,
-                         error=f"<ERROR>Invalid parameters: {e}</ERROR>")
-
     # Resolve and validate path
     try:
         fp = _validate_path(ctx.workdir, tool_call.input["path"])
@@ -71,14 +63,16 @@ def fs_prepare(ctx: ToolContext, tool_call: ToolCall) -> ToolCheck:
 
     return ToolCheck(tool_name=tool_call.name, tool_call_id=tool_call.id, valid=True)
 
-def read_file(ctx: ToolContext, path: str, limit: int | None = None) -> str:
+def read_file(ctx: ToolContext, path: str, limit: int | None = None, full: bool = False) -> str:
     try:
         fp = _validate_path(ctx.workdir, path)
     except Exception as e:
         return f"<ERROR>Invalid path: {e}</ERROR>"
     text = fp.read_text(encoding="utf-8")
+    if not full and len(text) > MAX_FILE_OUTPUT_CHARS:
+        text = text[:MAX_FILE_OUTPUT_CHARS] + f"\n... (output truncated, total {len(text)} chars)"
     lines = text.splitlines()
-    if limit and limit < len(lines):
+    if not full and limit and limit < len(lines):
         lines = lines[:limit] + [f"... ({len(lines) - limit} more lines)"]
     return "\n".join(lines)
 
@@ -100,11 +94,6 @@ def edit_file(ctx: ToolContext, path: str, old_text: str, new_text: str) -> str:
     fp.write_text(content.replace(old_text, new_text, 1), encoding="utf-8")
     return f"Edited {path}"
 
-def fs_finalize(ctx: ToolContext, tool_call: ToolCall, output: str) -> ToolResult:
-    if tool_call.name == "read_file" and len(output) > MAX_FILE_OUTPUT_CHARS:
-        output = output[:MAX_FILE_OUTPUT_CHARS] + f"\n... (output truncated, total {len(output)} chars)"
-    return ToolResult(tool_name=tool_call.name, tool_call_id=tool_call.id, output=output, success=True)
-
 
 SPECS = [
     ToolSpec(
@@ -114,12 +103,12 @@ SPECS = [
             {
                 "path": {"type": "string", "description": "Relative path or Full path to the file."},
                 "limit": {"type": "integer", "description": "Maximum lines to read."},
+                "full": {"type": "boolean", "description": "Whether to read the full content regardless of the limit."},
             },
             ["path"],
         ),
         handler=read_file,
         prepare=fs_prepare,
-        finalize=fs_finalize,
     ),
     ToolSpec(
         name="write_file",
@@ -133,7 +122,6 @@ SPECS = [
         ),
         handler=write_file,
         prepare=fs_prepare,
-        finalize=fs_finalize,
     ),
     ToolSpec(
         name="edit_file",
@@ -148,8 +136,5 @@ SPECS = [
         ),
         handler=edit_file,
         prepare=fs_prepare,
-        finalize=fs_finalize,
     ),
 ]
-
-SPECS_BY_NAME = {spec.name: spec for spec in SPECS}

@@ -1,6 +1,8 @@
 from pathlib import Path
 import json
 
+TASK_STATUS = ["pending", "in_progress", "completed"]
+
 class TaskManager:
     def __init__(self, task_dir: Path):
         self.task_dir = task_dir
@@ -44,11 +46,9 @@ class TaskManager:
         # find the file and extract task
         task = self._load(task_id)
         if not task:
-            return f"Invalid task_id : {task_id}. No such task."
+            return f"<ERROR>Invalid task_id : {task_id}. No such task.</ERROR>"
         # edit it
         if status:
-            if not status in ["pending", "in_progress", "completed"]:
-                return f"Invalid status. status should be in ['pending', 'in_progress', 'completed']"
             task["status"] = status
             if status == "completed":
                 self._clear_dependency(task_id)
@@ -69,4 +69,8 @@ class TaskManager:
 
     def get(self, task_id: int) -> str:
         return json.dumps(self._load(task_id), indent=2, ensure_ascii=False)
+    
+    def have_task(self, task_id: int) -> bool:
+        task_path = self.task_dir / f"task_{task_id}.json"
+        return task_path.exists()
     

@@ -1,18 +1,29 @@
 from __future__ import annotations
 
 import subprocess
+import shlex
 
-from my_claude_code.tools.contracts import ToolContext, ToolSpec, object_schema
+from my_claude_code.tools.contracts import ToolContext, ToolSpec, ToolCall, ToolCheck, object_schema
 
 
 MAX_COMMAND_OUTPUT_CHARS = 50_000
-BLOCKED_COMMAND_FRAGMENTS = ("rm -rf /", "sudo", "shutdown", "reboot", "> /dev/")
+RISKY_COMMAND_FRAGMENTS = ("rm ", "sudo", "shutdown", "reboot", ">", "mv ", "dd ", "git push")
 
+def shell_prepare(ctx: ToolContext, tool_call: ToolCall) -> ToolCheck:
+    try:
+        tokens = shlex.split(tool_call.input.get("command", ""))
+    except Exception as e:
+        return ToolCheck(tool_name=tool_call.name, tool_call_id=tool_call.id, valid=False,
+                         error=f"<ERROR>Error parsing command: {e}</ERROR>")
+    
+    if not tokens:
+        return ToolCheck(tool_name=tool_call.name, tool_call_id=tool_call.id, valid=False,
+                         error="<ERROR>Command cannot be empty.</ERROR>")
+    risky = any(fragment in tool_call.input.get("command", "") for fragment in RISKY_COMMAND_FRAGMENTS)
+    return ToolCheck(tool_name=tool_call.name, tool_call_id=tool_call.id, valid=True, needs_approval=bool(risky))
+    
 
 def bash(ctx: ToolContext, command: str) -> str:
-    if any(fragment in command for fragment in BLOCKED_COMMAND_FRAGMENTS):
-        return "<ERROR>Error: Dangerous command blocked</ERROR>"
-
     try:
         result = subprocess.run(
             command,
@@ -32,7 +43,7 @@ def bash(ctx: ToolContext, command: str) -> str:
 
 
 def background_run(ctx: ToolContext, command: str) -> str:
-    return ctx.runtime.background.run(command)
+    return ctx.runtime.background.run(command, ctx.workdir)
 
 
 def check_background(ctx: ToolContext, task_id: str | None = None) -> str:
@@ -53,12 +64,14 @@ SPECS = [
             ["command"],
         ),
         handler=bash,
+        prepare=shell_prepare,
     ),
     ToolSpec(
         name="background_run",
         description="Run a shell command in a background thread. Returns task_id immediately.",
         input_schema=object_schema({"command": {"type": "string"}}, ["command"]),
         handler=background_run,
+        prepare=shell_prepare,
     ),
     ToolSpec(
         name="check_background",
