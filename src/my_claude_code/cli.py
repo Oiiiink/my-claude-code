@@ -13,6 +13,7 @@ def main() -> None:
             print(bcolors.HEADER + 'agent ended' + bcolors.ENDC)
             break
         runtime.history.append({'role':'user', 'content':query})
+        runtime.sessions.append_user_message(query)
         runtime.agent_loop()
         print(bcolors.HEADER + "Agent Response:" + bcolors.ENDC)
         runtime.print_last_response()

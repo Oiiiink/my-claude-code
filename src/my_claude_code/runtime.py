@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from my_claude_code.config import (
     MAIN_NAME,
     MODEL_ID,
+    SESSIONS_DIR,
     WORKDIR,
     SKILL_DIR,
     TRANSCRIPT_DIR,
@@ -21,6 +22,8 @@ from my_claude_code.config import (
     bcolors,
 )
 from my_claude_code.managers import *
+from my_claude_code.managers.sessions import SessionsManager
+from my_claude_code.managers.types.sessions import AgentMessage, AssistantMessage, MessageEntry
 from my_claude_code.tools import *
 from my_claude_code.compaction import *
 from my_claude_code.tools.registry import run_tool_call, ToolCall
@@ -35,6 +38,7 @@ class Runtime:
     skills: SkillLoader
     tasks: TaskManager
     background: BackgroundManager
+    sessions: SessionsManager
     team: TeamManager
     bus: MessageBus
     max_tokens: int
@@ -64,6 +68,7 @@ class Runtime:
                 messages=messages
             )
             messages.append({'role':'assistant', 'content':response.content})
+            self.sessions.append_assistant_message(response)
 
             tool_calls = [block for block in response.content if block.type == 'tool_use']
             if not tool_calls:
@@ -77,6 +82,7 @@ class Runtime:
                 tool_call = ToolCall(name=block.name, input=block.input, id=block.id)
                 tool_result = run_tool_call(tool_ctx, tool_call)
                 results.append(tool_result.to_anthropic_tool_result())
+                self.sessions.append_tool_result(tool_result)
                 if block.name == "todo":
                     turns_since_todo = -1
                 elif block.name == "compact":
@@ -102,7 +108,9 @@ class Runtime:
             """
 
     def _auto_compact(self, focus: str| None=None):
+        before = self.history[:]
         self.history[:] = auto_compact(self.history, self._client, self.model_id, self.max_tokens // 4, focus)
+        self.sessions.append_compact_entry(focus=focus or "no focus", before=before, after=self.history)
         
     def _micro_compact(self):
         micro_compact(self.history)
@@ -142,6 +150,7 @@ def create_runtime(
     managers: list[str]=get_managers("lead"),
     max_tokens: int=DEFAULT_MAX_TOKEN,
     max_turn: int=None,
+    sessions_dir: Path=SESSIONS_DIR
     )-> Runtime:
     all = managers == []
     todo = TodoManager() if all or "todo" in managers else None
@@ -150,6 +159,7 @@ def create_runtime(
     background = BackgroundManager() if all or "background" in managers else None
     team = TeamManager(TEAM_DIR) if all or "team" in managers else None
     bus = MessageBus(INBOX_DIR) if all or "team" in managers else None
+    sessions = SessionsManager(sessions_dir=sessions_dir, cwd=workdir) if all or "sessions" in managers else None
     client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
     return Runtime(
         model_id=model_id,
@@ -165,5 +175,6 @@ def create_runtime(
         max_tokens=max_tokens,
         max_turn=max_turn,
         history=[],
-        _client=client
+        _client=client,
+        sessions=sessions,
     )

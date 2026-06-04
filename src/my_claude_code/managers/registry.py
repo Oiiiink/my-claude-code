@@ -8,6 +8,7 @@ ALL_MANAGERS = [
     "tasks",
     "background",
     "team",
+    "sessions",
 ]
 
 SUBAGENT_MANAGERS = [

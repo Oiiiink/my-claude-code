@@ -106,9 +106,12 @@ def run_tool_call(ctx: ToolContext, tool_call: ToolCall) -> ToolResult:
         reason = "Approval denied by user." if ctx.role == "lead" else "This command is risky and ask lead to run it if you really want the result."
         return ToolResult(tool_name=tool_call.name, tool_call_id=tool_call.id, output=f"<ERROR>{reason}</ERROR>", success=False)
         
-    output = execute_tool_call(ctx, tool_call)
-    return finalize_tool_call(ctx, tool_call, output)
-    
+    try:
+        output = execute_tool_call(ctx, tool_call)
+        return finalize_tool_call(ctx, tool_call, output)
+    except Exception as e:
+        return ToolResult(tool_name=tool_call.name, tool_call_id=tool_call.id, output=f"<ERROR>Failed to execute tool: {e}</ERROR>", success=False)
+
 def prepare_tool_call(ctx: ToolContext, tool_call: ToolCall) -> ToolCheck:
     spec = get_tool_spec(tool_call.name)
     if spec is None or tool_call.name not in TOOLS_BY_ROLE[ctx.role]:
