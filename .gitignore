@@ -10,27 +10,20 @@ pytest_cache/
 # Virtual environments
 .venv
 
-# below is for me
-uv.md
-.env
-mistake/
-report/
-change.md
-tmp/
-log.txt
-bugs/
-.skills
-.tasks/
-s_full.py
-JD.png
-internship-al*.md
-.team
-notions/
-Re*
-# Codex
-.agents/*
-.codex/
-.claude/
-deep-research/
-design/
+# my_claude_code runtime files
 .sessions/
+.skills/
+.tasks/
+.team/
+.transcripts/
+
+# agents
+.agents/
+.claude/
+.codex/
+CLAUDE.md
+
+# private files
+.env
+todo.md
+private/

@@ -9,30 +9,34 @@ import uuid
 @dataclass(frozen=True, kw_only=True)
 class AgentMessage:
     role: str
-    content: dict[str, Any]
     
 @dataclass(frozen=True, kw_only=True)
 class AssistantMessage(AgentMessage):
+    role: str="assistant"
     model: str
     input_tokens: int
     output_tokens: int
-    role: str="assistant"
+    content: dict[str, Any] | list[dict[str, Any]]
     
 @dataclass(frozen=True, kw_only=True)
 class UserMessage(AgentMessage):
     role: str="user"
+    content: dict[str, Any]
 
 @dataclass(frozen=True, kw_only=True)
 class ToolResultMessage(AgentMessage):
+    role: str="tool_result"
     tool_name: str
     tool_call_id: str
     success: bool
-    role: str="tool_result"
+    truncated: bool
+    nbytes: int
+    content: dict[str, Any]
 
 # Entry
 @dataclass(frozen=True, kw_only=True)
 class Entry:
-    id: str = uuid.uuid4()
+    id: str = field(default_factory=lambda: uuid.uuid4().hex)
     timestamp: str = field(default_factory=lambda: datetime.now(timezone(timedelta(hours=8))).isoformat())
     type: str="entry"
     

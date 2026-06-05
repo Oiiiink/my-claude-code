@@ -7,6 +7,15 @@ from my_claude_code.compaction.compaction import estimate_tokens
 from my_claude_code.managers.types.sessions import AssistantMessage, CompactEntry, MessageEntry, SessionEntry, ToolResultMessage, UserMessage
 from my_claude_code.tools.contracts import ToolResult
 
+
+MAX_LOGGED_OUTPUT_CHARS = 4000
+
+def truncate(text: str) -> tuple[str, int, bool]:
+    nbytes = len(text.encode("utf-8"))
+    if len(text) <= MAX_LOGGED_OUTPUT_CHARS:
+        return text, nbytes, False
+    return text[:MAX_LOGGED_OUTPUT_CHARS], nbytes, True
+
 class SessionsManager:
     def __init__(self, sessions_dir: Path, cwd: Path):
         self.sessions_dir = sessions_dir.resolve()
@@ -38,13 +47,17 @@ class SessionsManager:
         )))
         
     def append_tool_result(self, tool_result: ToolResult):
+        raw = tool_result.output if isinstance(tool_result.output, str) else json.dumps(tool_result.output, ensure_ascii=False)
+        truncated, nbytes, truncated_flag = truncate(raw)
         self.append_entry(MessageEntry(message=ToolResultMessage(
             tool_name=tool_result.tool_name,
             tool_call_id=tool_result.tool_call_id,
             success=tool_result.success,
+            truncated=truncated_flag,
+            nbytes=nbytes,
             content={
                 "type": "text",
-                "text": tool_result.output if isinstance(tool_result.output, str) else json.dumps(tool_result.output, ensure_ascii=False)
+                "text": truncated,
             }
         )))
         
