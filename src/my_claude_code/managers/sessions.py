@@ -19,13 +19,23 @@ def truncate(text: str) -> tuple[str, int, bool]:
 class SessionsManager:
     def __init__(self, sessions_dir: Path, cwd: Path):
         self.sessions_dir = sessions_dir.resolve()
-        self.session_id = uuid.uuid4().hex
+        self.session_id = self._max_id(self.sessions_dir)
         self.cwd = cwd.resolve()
         self.sessions_file = self.sessions_dir / f"session_{self.session_id}.jsonl"
         self.entries = []
         
         self.sessions_dir.mkdir(exist_ok=True)
         self.append_entry(SessionEntry(id=self.session_id, cwd=self.cwd))
+        
+    def _max_id(self, sessions_dir: Path) -> int:
+        max_id = 0
+        for file in sessions_dir.glob("session_*.jsonl"):
+            try:
+                session_id = int(file.stem.split("_")[1])
+                max_id = max(max_id, session_id)
+            except ValueError:
+                continue
+        return max_id
         
     def append_entry(self, entry: SessionEntry | MessageEntry | CompactEntry):
         self.entries.append(entry)
@@ -61,7 +71,5 @@ class SessionsManager:
             }
         )))
         
-    def append_compact_entry(self, focus:str, before: dict, after: dict):
-        before_sta = {"token_counts": estimate_tokens(before), "messages": json.dumps(before, default=str, ensure_ascii=False)}
-        after_sta = {"token_counts": estimate_tokens(after), "messages": json.dumps(after, default=str, ensure_ascii=False)}
-        self.append_entry(CompactEntry(focus=focus, before=before_sta, after=after_sta))
+    def append_compact_entry(self, focus:str, before: int, after: int, transcript_path: Path):
+        self.append_entry(CompactEntry(focus=focus, before_token_count=before, after_token_count=after, transcript_path=transcript_path))

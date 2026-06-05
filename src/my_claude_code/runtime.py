@@ -108,9 +108,10 @@ class Runtime:
             """
 
     def _auto_compact(self, focus: str| None=None):
-        before = self.history[:]
-        self.history[:] = auto_compact(self.history, self._client, self.model_id, self.max_tokens // 4, focus)
-        self.sessions.append_compact_entry(focus=focus or "no focus", before=before, after=self.history)
+        before = estimate_tokens(self.history)
+        self.history[:], transcript_path = compact(self.history, self._client, self.model_id, self.max_tokens // 4, focus)
+        after = estimate_tokens(self.history)
+        self.sessions.append_compact_entry(focus=focus or "no focus", before=before, after=after, transcript_path=transcript_path)
         
     def _micro_compact(self):
         micro_compact(self.history)
@@ -127,7 +128,7 @@ class Runtime:
             self.history.append({"role": "user", "content": f"<background-results>\n{notif_text}\n</background-results>"})
 
     def _inbox_notification(self):
-        if self.bus is None and self.role == "lead":
+        if self.bus is None or self.role == "lead":
             return
         
         inbox = self.bus.read_inbox(self.name)

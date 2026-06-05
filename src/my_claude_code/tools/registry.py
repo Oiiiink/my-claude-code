@@ -15,6 +15,7 @@ LEAD_TOOL_NAMES = [
     "todo",
     "load_skill",
     "subagent",
+    "compact",
     "task_create",
     "task_update",
     "task_list",

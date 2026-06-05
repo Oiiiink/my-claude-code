@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from my_claude_code.config import (
     KEEP_RECENT,
     PRESERVE_RESULT_TOOLS,
@@ -38,12 +40,12 @@ def micro_compact(messages: list):
         ):
             result["content"] = f"[Previous: used {tool_name}]"
 
-def auto_compact(
+def compact(
     messages: list, 
     client: Anthropic, 
     model_id: str, max_token: int, 
     focus: str|None=None,
-    ) -> list:
+    ) -> tuple[list, Path]:
     focus = "no focus" if not focus else focus
     TRANSCRIPT_DIR.mkdir(exist_ok=True)
     transcript_path = TRANSCRIPT_DIR / f"transcript_{int(time.time())}.jsonl"
@@ -65,4 +67,4 @@ def auto_compact(
     summary = next((block.text for block in response.content if hasattr(block, "text")), "")
     if not summary:
         summary = "(no summary)"
-    return [{"role": "user", "content": f"[Conversation compressed] transcript path:{transcript_path}\n\n{summary}"}]
+    return [{"role": "user", "content": f"[Conversation compressed] transcript path:{transcript_path}\n\n{summary}"}], transcript_path

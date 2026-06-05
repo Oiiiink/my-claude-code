@@ -53,6 +53,7 @@ class MessageEntry(Entry):
 @dataclass(frozen=True, kw_only=True)
 class CompactEntry(Entry):
     focus: str
-    before: dict[str, Any]
-    after: dict[str, Any]
+    before_token_count: int
+    after_token_count: int
+    transcript_path: Path
     type: str="compact"

@@ -1,7 +1,7 @@
-from .compaction import auto_compact, micro_compact, estimate_tokens
+from .compaction import compact, micro_compact, estimate_tokens
 
 __all__ = [
-    'auto_compact',
+    'compact',
     'micro_compact',
     'estimate_tokens'
 ]

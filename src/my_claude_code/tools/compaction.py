@@ -1,7 +1,7 @@
 from my_claude_code.tools.contracts import ToolContext, ToolSpec, object_schema, ToolCheck, ToolCall
 from my_claude_code.compaction.compaction import estimate_tokens
 
-def compact(ctx: ToolContext, focus: str):
+def compact(ctx: ToolContext, focus: str| None = None) -> str:
     return f"manual compaction triggered by {ctx.actor} at the context window of {estimate_tokens(ctx.runtime.history)} tokens."
 
 SPECS = [
