@@ -1,130 +1,165 @@
 # Roadmap
 
-Authoritative source: `deep-research/PLAN.md` (2026-05-30), graded against two
-real JDs — the DeepSeek **Harness team** R&D JD and the ByteDance **Seed**
-Engineering-Harness JD. This page mirrors that plan against the current
-`src/my_claude_code/` package state. Source code remains authoritative for
-*what exists*; PLAN.md is authoritative for *order and priority*.
+Authoritative roadmap source: `private/agent-plan/PLAN.md` (2026-05-30).
+Current supplement: `private/agent-plan/PLAN_0604.md` (backend/RL learning,
+internship timing, and application tactics). Older positioning source:
+`private/report/internship-alignment-plan.md`.
+
+Source code remains authoritative for what exists. The private plans are
+authoritative for order and priority.
 
 ## Strategic Direction
 
-Present the project as a **Coding Agent Engineering Harness**: a bounded
-tool-calling loop with an enforced execution boundary, a test/verify feedback
-loop, a SWE-bench-style **evaluation harness that prints a headline number**,
-RL-ready trajectory + reward logging, and persistent cross-session memory.
-Thesis: **"Model + Harness = Agent."**
+Present the project as a Coding Agent Engineering Harness: a bounded
+tool-calling loop with execution boundaries, test/verify feedback, a small
+SWE-bench-style evaluation harness that prints a headline number, RL-ready
+trajectory/reward logging, and persistent cross-session memory.
 
-## Priority (blunt, from PLAN.md §7)
+Thesis from the build plan: "Model + Harness = Agent." The value of this repo is
+the harness layer, not a generic chatbot surface.
 
-Depth on eval beats breadth on features. Order by signal, not by stage number:
+## Priority
 
-1. **Stage 2 — Eval harness + feedback loop + headline number**  ← the interview-getter
-2. **Stage 1 — Bounded harness core / execution boundary**       ← the JD's hardest line
-3. **Stage 3 — RL-ready trajectories + failure analysis**        ← cheap, very high signal
-4. **Stage 0 — Always-runs reliability**                         ← table stakes
-5. **Stage 4 — Persistent memory**                               ← user's interest + real frontier
-6. **Stage 5 — Multi-agent, finished**                           ← only after 1–3 are solid
-7. **Stage 6 — Ray/queue scale**                                 ← only on a real bottleneck
+Depth on eval beats breadth on features:
 
-> Correction note (2026-06-04): the previous version of this page ordered
-> multi-agent as an early phase and pushed RL/backend to the very end. PLAN.md
-> deliberately places **eval (2) and RL-data (3) before multi-agent (5)**.
-> Multi-agent and backend are explicitly *resist-the-pull* items.
+1. Stage 2: eval harness + feedback loop + headline number.
+2. Stage 1: bounded harness core / execution boundary.
+3. Stage 3: RL-ready trajectories + failure analysis.
+4. Stage 0: always-runs reliability.
+5. Stage 4: persistent memory.
+6. Stage 5: multi-agent, finished only after 1-3 are solid.
+7. Stage 6: Ray/queue scale only on a real eval bottleneck.
 
-## Stage Status (PLAN.md stage ↔ current src state)
+The 2026-06-04 supplement confirms that eval and RL-data come before
+multi-agent/backend. Do not pull multi-agent forward just because skeleton code
+already exists.
 
-### Stage 0 — Always-runs reliability
-Status: partly achieved. Runs via `python -m my_claude_code`; monolith retired.
-Remaining: smoke test (import + validate every tool schema), regression test for
-the `tool_use`/`tool_result` settlement bug (see `bugs/1.md`), hide unfinished
-multi-agent tools behind the role registry so a demo can't crash.
-Checkpoint: cold clone completes "read→edit→check→summarize" with zero unhandled
-exceptions; `uv run pytest` green; a 30s GIF in README.
+## Stage Status Against Current Source
 
-### Stage 1 — Bounded harness core / execution boundary
-Status: in progress. `tools/registry.py` + `ToolContext`/`ToolSpec` exist;
-`filesystem.py` has workdir path containment.
-Remaining: `safe_path()` hardening (block escapes, `.env`/`.git`/`.venv`,
-oversized reads); **bounded shell** (timeout, output-length cap, workdir jail,
-allowlist or explicit unsafe-mode flag); structured **JSONL logging of every
-tool call** (seed of Stage-3 trajectories); pi-style tree-structured JSONL
-session storage.
-Checkpoint: a written **threat table** — ≥6 unsafe actions, each blocked/bounded,
-each with a test.
+### Stage 0: Always-runs reliability
 
-### Stage 2 — Feedback loop + evaluation harness (CENTERPIECE)
-Status: pending. The single highest-signal stage; "the stage that gets you the
-interview."
-Build: a `run_tests` *structured* tool (parsed pass/fail, not raw shell); the
-plan→edit→run-tests→read-failure→retry loop (bounded iterations, explicit
-failure state, per-run transcript); a mini eval harness on SWE-bench mechanics
-(task-spec schema, per-task isolation — git-reset fixture minimum, Docker per
-task ideal; patch-apply as a *distinct* failure state from test-failure;
-test-transition scoring). Run 5–10 tiny local tasks; do NOT run full SWE-bench.
-Checkpoint: `report/eval-v1.md` with a reproducible **headline pass-rate** from
-`uv run python -m my_claude_code.eval`.
+Status: incomplete. The package entrypoint exists, the src-layout refactor is in
+place, and a no-write AST parse of `src/my_claude_code/**/*.py` passed on
+2026-06-05. However, the current local session test run is not green:
+`test/test_sessions.py` has one passing test and one failure because the test
+expects `output_bytes` while current source emits `nbytes`.
 
-### Stage 3 — RL-ready trajectories + failure analysis
-Status: pending. Answers the RL JD lines via *data design*, not training.
-Build: trajectory JSONL schema (ordered observation/action/result + final reward
-+ metadata, replayable); reward fields (binary RLVR test-pass + auxiliary: edit
-size, safety violations, cost, time; note which tokens are loss-masked); a
-`report/failure-analysis-v1.md` with a failure taxonomy (planning / localization
-/ modification / execution / recovery).
-Checkpoint: trajectory file round-trips; reward fn has a unit test; 1–2pp
-failure writeup with one harness improvement it drove.
+Remaining:
 
-### Stage 4 — Persistent cross-session memory
-Status: pending. Compaction alone is insufficient (Anthropic, Nov 2025).
-Build: on-disk memory artifacts (progress log, descriptive git commits,
-structured state file); initializer step vs per-session coding step; layer with
-block-based compaction (summary + full content on disk + lost-content labels).
-Checkpoint: kill mid-task, restart cold, agent reconstructs state and finishes.
+- decide and stabilize the session tool-output byte-count field;
+- add a smoke test that imports the package with a configured `MODEL`;
+- validate every tool schema;
+- keep unfinished teammate tools hidden from the lead demo surface;
+- add a regression test for the `tool_use`/`tool_result` settlement bug.
 
-### Stage 5 — Multi-agent, finished
-Status: experimental. `TeamManager`, `MessageBus`, teammate spawning exist.
-Only after Stages 0–3 are solid.
-Remaining: deliberate lifecycle, validated names, durable `.team/config.json`,
-message IDs + `inbox_history.jsonl`, tests for send/read/broadcast/invalid/
-shutdown.
+Checkpoint: cold clone can run a simple read/edit/check/summarize task with zero
+unhandled exceptions, and `uv run pytest` is green.
 
-### Stage 6 — Scale / backend (gated)
-Status: pending. Add ONLY when serial eval becomes a real bottleneck.
-Build: local `Job`/`JobStore` queue interface first, then **Ray** as the
-executor for parallel eval rollouts with per-task isolation preserved; optional
-FastAPI service mode only after the CLI is rock solid.
-Checkpoint: N eval tasks run in parallel via Ray with isolation; you can state
-the speedup and the cost/stability tradeoff.
+### Stage 1: Bounded harness core / execution boundary
 
-## Learning Track: Backend & RL (Seed-aligned)
+Status: in progress. Current source has `tools/contracts.py`,
+`tools/registry.py`, role-gated tool lists, workdir path containment in
+`filesystem._validate_path`, shell timeouts/output caps, and approval prompts for
+a small risky-fragment list.
 
-The Seed JD's agent-harness + backend + RL are one pipeline —
-**harness (environment) → backend (rollout infra at scale) → RL (training loop
-that consumes trajectories)**. MCC already owns the harness layer. "Backend" =
-rollout/eval infra (async, queue, sandbox, model serving), **not** web/CRUD;
-the on-target stack is Ray + vLLM + Docker (+ ByteDance's open-source **verl**
-as the canonical agentic-RL framework to study). "RL" = the agentic slice
-(policy-gradient → PPO/RLHF → **GRPO / RL-with-verifiable-rewards**), where the
-harness's test pass/fail is the verifiable reward.
+Remaining:
 
-Sequencing decision (confirmed with user 2026-06-04):
+- block sensitive paths such as `.env`, `.git`, and `.venv`;
+- add file size/type limits before reading;
+- make shell policy explicit with allowlist or unsafe mode;
+- avoid relying on ad hoc command-string fragments;
+- capture duration/outcome/args for every tool call;
+- write tests for unsafe path, command, and output cases.
 
-- **RL theory** runs as a parallel low-bandwidth track starting now (Spinning Up
-  → PPO → RLHF → GRPO/verl). Compounding, independent of project code state,
-  serves the long-term base-model aim.
-- **Backend** is inserted by scaling the **Stage 2** eval harness into **Stage 6**
-  (run 1 task → run N tasks across workers via Ray). Learned by doing, not as a
-  separate web project. Sandboxed execution upgrades Stage 1.
-- **RL** is answered first by **Stage 3 data design** (trajectory + reward), then
-  optionally a capstone: a tiny GRPO/PPO run on a small open model with the
-  harness as environment. Do NOT fake RL training before the data is real.
+Checkpoint: a threat table with at least six unsafe actions, each
+blocked/bounded and backed by a test.
 
-### Detailed RL curriculum (external)
+### Stage 2: Feedback loop + evaluation harness
 
-The full RL learning plan now lives at **`~/Topic/RL/`** (created 2026-06-04):
-`LEARNING_PLAN.md` (6 phases + capstone, each mapped to an MCC stage),
-`RESEARCH.md` (2026 deep-research digest — GRPO/DAPO/GSPO, RLVR, agentic RL, verl),
-`README.md` (framing). The phase→stage map: Phases 3–4 (RLHF→RLVR→GRPO) feed
-**Stage 3** reward design; Phase 5 (agentic RL + Ray/vLLM/Docker/verl) is the
-blueprint for **Stage 6**; the capstone is a tiny GRPO run with the MCC eval
-harness as the RLVR environment. Recheck against `~/Topic/RL/` before RL work.
+Status: pending. No `my_claude_code.eval` package, eval runner, benchmark task
+fixtures, or report exists in the current tree.
+
+Build:
+
+- a structured `run_tests` tool with parsed pass/fail output;
+- a bounded plan -> edit -> run-tests -> inspect-failure -> retry loop;
+- mini SWE-bench-style task specs and isolated fixtures;
+- patch-apply failure separate from test failure;
+- generated report with pass rate, iterations, tool calls, wall time, and cost if available.
+
+Checkpoint: a reproducible eval report under the current private/public report
+layout with a headline pass-rate from a local task set.
+
+### Stage 3: RL-ready trajectories + failure analysis
+
+Status: pending. Current `.sessions/` JSONL is a useful capture seed, but it is
+not yet an RL-ready trajectory schema.
+
+Build:
+
+- one episode format: observation, assistant action/tool call, result, final outcome, reward, metadata;
+- reward fields for test pass, safety violations, edit size, cost, and wall time;
+- a replay/round-trip check;
+- a failure-analysis report grouping failures by planning, localization, modification, execution, and recovery.
+
+Checkpoint: trajectory file round-trips, reward function has a unit test, and a
+short failure-analysis writeup names one concrete harness improvement.
+
+### Stage 4: Persistent cross-session memory
+
+Status: pending. The repo has compaction, local skills, durable tasks, and
+session logs, but no deliberate cross-session memory module.
+
+Build:
+
+- on-disk progress artifacts;
+- initializer vs per-session coding steps;
+- structured state that a fresh process can read;
+- compaction that points to durable full-content artifacts instead of losing detail.
+
+Checkpoint: kill mid-task, restart cold, reconstruct state from disk, and finish.
+
+### Stage 5: Multi-agent, finished
+
+Status: experimental and intentionally hidden from lead tools. `TeamManager`,
+`MessageBus`, teammate handlers, and request tools exist, but lead-facing
+teammate tools are commented out in `tools/registry.py`.
+
+Remaining:
+
+- deliberate teammate lifecycle;
+- validated teammate names and recipients;
+- durable inbox history, not only destructive reads;
+- request IDs/status persistence;
+- tests for send, read, broadcast, invalid recipient, plan, and shutdown flows.
+
+Checkpoint: a deterministic two-teammate task with a complete message log and
+tests for no dead-inbox/lost-request failures.
+
+### Stage 6: Scale / backend
+
+Status: pending and gated. Add only when serial eval becomes a real bottleneck.
+
+Build:
+
+- local `Job` / `JobStore` queue interface first;
+- Ray executor for parallel eval rollouts only after isolation and eval are real;
+- optional service mode only after CLI reliability.
+
+Checkpoint: N eval tasks run in parallel with isolation preserved, and the repo
+records speedup plus cost/stability tradeoff.
+
+## Backend And RL Learning Track
+
+`private/agent-plan/PLAN_0604.md` reframes backend and RL as one pipeline:
+harness environment -> rollout/backend infra -> RL training loop. Backend here
+means eval/rollout infra such as async execution, queueing, sandboxing, model
+serving, Ray, vLLM, Docker, and eventually verl-style rollout systems. It does
+not mean a separate CRUD web project.
+
+Confirmed sequencing:
+
+- learn RL theory now in parallel at low bandwidth;
+- learn backend by scaling Stage-2 eval into Stage 6;
+- answer RL first through Stage-3 trajectory and reward data;
+- do not fake RL training before data and eval are real.

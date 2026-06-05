@@ -1,80 +1,117 @@
 # Architecture
 
-This page maps current `src/my_claude_code/`; source files remain authoritative.
+This page maps the current `src/my_claude_code/` skeleton. Source files remain
+authoritative.
 
-## Runtime And Unified Loop
+## Entry And Config
 
-`Runtime` in `src/my_claude_code/runtime.py` owns the model id, actor name,
-role, workdir, managers, message history, and Anthropic client. All roles call
-the same `Runtime.agent_loop`; subagents and teammates are no longer separate
-hand-written loops.
+The package entrypoint is `python -m my_claude_code`. `__main__.py` calls
+`cli.main()`, and `cli.py` creates one runtime, reads user input from the TUI,
+appends each user message, runs the agent loop, and prints the last assistant
+text.
 
-Each loop iteration compacts old tool results, injects notifications, asks
-Anthropic with `build_tools(self.role)`, executes returned tool calls, and
-appends matching `tool_result` blocks. Manual compaction is routed to
-`compaction/compaction.py`.
+`config.py` loads `.env`, requires `MODEL`, and defines paths relative to the
+current workdir: `.skills/`, `.tasks/`, `.team/`, `.team/inbox/`, `.sessions/`,
+and `.transcripts/`.
 
-Tool execution receives a `ToolContext` from `tools/context.py`. Its `actor` is
-the runtime name, while `role` is only the capability class.
+## Runtime Loop
 
-## Role Model
+`Runtime` in `runtime.py` owns the model id, actor name, role, workdir, managers,
+message history, session logger, and Anthropic client. All roles use the same
+`Runtime.agent_loop`.
 
-Roles are `lead`, `subagent`, and `teammate` (`tools/context.py` and
-`managers/registry.py`). The lead identity is `MAIN_NAME`, currently `"main"`,
-from `config.py`. Role gates capabilities; actor names route messages,
-inboxes, and request permissions.
+Each loop iteration:
 
-## Two Registries
+1. micro-compacts old tool results;
+2. auto-compacts when the context estimate crosses `DEFAULT_CTX_THRESHOLD`;
+3. injects background and inbox notifications into history;
+4. calls Anthropic with `build_tools(self.role)`;
+5. appends the assistant response and session-log entry;
+6. executes every returned `tool_use` through `run_tool_call`;
+7. appends matching `tool_result` blocks back to history;
+8. triggers full auto-compaction if the manual `compact` tool was called.
 
-`tools/registry.py` is the capability registry. It builds Anthropic tool schemas
-from grouped `ToolSpec` objects and exposes tool-name lists per role.
+The loop scans response content for `tool_use` blocks rather than trusting only
+`stop_reason`, which preserves the lesson from `bugs/1.md`.
 
-`managers/registry.py` is the state registry. It decides which mutable manager
-objects a runtime receives per role.
+## Tool Contract Layer
 
-These registries cooperate but stay separate: tools are stateless handlers over
-`ToolContext`, while managers own mutable state such as todos, tasks,
-background jobs, team membership, and inbox files.
+`tools/contracts.py` is the current contract layer. It defines:
 
-Lead-only tools include task-board and teammate orchestration. Subagents get
-local work tools and compaction. Teammates also get message, plan, shutdown,
-and request-status tools. Canonical lists live in `tools/registry.py`.
+- `Role = Literal["lead", "subagent", "teammate"]`;
+- `ToolContext(actor, role, workdir, runtime)`;
+- `ToolSpec(name, description, input_schema, handler, prepare, finalize)`;
+- `ToolCall(name, input, id)`;
+- `ToolCheck(valid, needs_approval, error)`;
+- `ToolResult(output, success)` plus Anthropic tool-result conversion;
+- `object_schema(...)` for strict object schemas.
 
-## Lead To Subagent Flow
+There is no live `tools/context.py`; references to that path are stale.
 
-The lead exposes the `subagent` tool through `tools/registry.py`. Its handler in
-`tools/multi_agents.py` lazily imports `create_runtime`, builds a fresh
-`Runtime` with role `subagent`, shared workdir and model id, a smaller token
-budget, and a fresh history containing only the prompt.
+## Tool Registry
 
-The subagent runs one bounded loop and returns text from its last assistant
-message. It shares the filesystem, not the lead conversation history.
+`tools/registry.py` is the capability registry. It builds `TOOL_REGISTRY` from
+tool-group `SPECS`, exposes role-specific tool names, validates parameters with
+`tools/utils.py`, runs optional `prepare`, requests user approval for risky lead
+calls, executes the handler, and then runs optional `finalize`.
 
-## Lead To Teammate To Bus Flow
+Current role exposure:
 
-The lead calls `spawn_teammate` from `tools/multi_agents.py`, which delegates to
-`TeamManager.spawn` in `managers/team.py`.
+- lead: shell, filesystem, todo, skills, `subagent`, task board, background shell;
+- subagent: shell, filesystem, todo, skills, `compact`, background shell;
+- teammate: shell, filesystem, todo, skills, background shell, `compact`, message bus, plan/shutdown request tools.
 
-`TeamManager` persists member status in `.team/config.json`, starts a daemon
-thread, and runs `_teammate_loop`. That loop creates a teammate `Runtime`, then
-injects the shared `MessageBus` and same `TeamManager` so request state is
-visible across lead and teammate threads.
+Lead-facing teammate orchestration tools are present in `tools/multi_agents.py`
+but commented out in `LEAD_TOOL_NAMES`. Treat teammate mode as experimental
+skeleton, not stable user-facing behavior.
 
-Messages are JSONL records written by `MessageBus` in `managers/message_bus.py`.
-`read_inbox` returns messages and truncates the inbox file. Current teammates
-are effectively one-shot: after `agent_loop` returns, status becomes `idle`, so
-the loop exits on the next check unless recalled.
+## Managers
 
-## Persistence Dirs
+`managers/registry.py` is the state registry. It decides which manager objects a
+runtime receives by role.
 
-Paths are defined in `config.py` relative to the current workdir:
+Current managers:
 
-- `.skills/`: input skill files loaded by `SkillLoader`; deleting removes local
-  skills.
-- `.tasks/`: durable task-board JSON files; deleting resets task state.
-- `.team/config.json`: durable team membership/status; deleting resets team
-  membership.
-- `.team/inbox/*.jsonl`: message inboxes; reads are destructive, so deleting
-  drops pending messages.
-- `.transcripts/`: compaction transcript output; safe to delete when old
-  summaries are no longer needed.
+- `TodoManager`: in-memory task list for the current runtime.
+- `SkillLoader`: reads `.skills/**/SKILL.md` and exposes descriptions/bodies.
+- `TaskManager`: stores durable task-board JSON files in `.tasks/`.
+- `BackgroundManager`: runs shell commands in daemon threads and queues notifications.
+- `SessionsManager`: appends session/message/tool/compact entries to `.sessions/session_<id>.jsonl`.
+- `TeamManager`: stores team membership in `.team/config.json` and starts teammate threads.
+- `MessageBus`: writes inbox JSONL files under `.team/inbox/`; reads are destructive.
+
+The manager/tool split is intentional: tools are schema plus handlers over
+`ToolContext`; managers own mutable state.
+
+## Subagent Flow
+
+The lead exposes `subagent`. Its handler in `tools/multi_agents.py` lazily
+imports `create_runtime`, builds a fresh runtime with role `subagent`, shared
+model/workdir, a smaller token budget, and fresh history containing only the
+subtask prompt.
+
+The subagent shares the filesystem but not the lead conversation history.
+
+## Teammate Flow
+
+The teammate system is present but parked. `TeamManager.spawn` records a member,
+starts a daemon thread, creates a role `teammate` runtime, and injects the lead's
+shared `MessageBus` and `TeamManager` into that runtime so in-memory request
+state is shared.
+
+`MessageBus.send` appends JSONL records to `.team/inbox/<name>.jsonl`.
+`MessageBus.read_inbox` reads and truncates the inbox file. Because inbox reads
+are destructive and runtime notification also reads inboxes, this design needs
+one-consumer discipline before teammate mode is made prominent.
+
+## Logging And Compaction
+
+Current durable capture is session JSONL under `.sessions/`. `SessionsManager`
+records a session entry, user/assistant/tool-result messages, token counts for
+assistant responses, truncated tool output text, byte counts as `nbytes`, and
+compact entries with before/after token estimates.
+
+`compaction/compaction.py` has two layers:
+
+- `micro_compact(messages)`: replaces old long tool-result content with a short marker after `KEEP_RECENT`;
+- `auto_compact(...)`: writes a full transcript to `.transcripts/transcript_<timestamp>.jsonl`, asks the model for a continuity summary, and replaces history with that summary.
