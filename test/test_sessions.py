@@ -15,5 +15,5 @@ def test_tool_output_truncated(tmp_path):            # drives Fix 2
     s = SessionsManager(sessions_dir=tmp_path, cwd=tmp_path)
     s.append_tool_result(ToolResult("read_file", "t2", "x" * 10_000, True))
     m = _read(s.sessions_file)[-1]["message"]
-    assert m["truncated"] and m["output_bytes"] == 10_000
+    assert m["truncated"] and m["nbytes"] == 10_000
     assert len(m["content"]["text"]) <= 4000
