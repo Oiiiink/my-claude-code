@@ -25,7 +25,10 @@ def run_subagent(ctx, prompt: str, max_turn: int = 50) -> str:
     subagent.history.append({"role": "user", "content": prompt})
     subagent.agent_loop()
     
-    return "".join(b.text for b in subagent.history[-1].content if hasattr(b, "text")) or "(no summary)"
+    last_content = subagent.history[-1]["content"]
+    if isinstance(last_content, str):
+        return last_content
+    return "".join(b.text for b in last_content if hasattr(b, "text")) or "(no summary)"
 
 
 def spawn_teammate(ctx: ToolContext, name: str, prompt: str) -> str:

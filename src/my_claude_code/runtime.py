@@ -68,7 +68,8 @@ class Runtime:
                 messages=messages
             )
             messages.append({'role':'assistant', 'content':response.content})
-            self.sessions.append_assistant_message(response)
+            if self.sessions is not None:
+                self.sessions.append_assistant_message(response)
 
             tool_calls = [block for block in response.content if block.type == 'tool_use']
             if not tool_calls:
@@ -82,7 +83,8 @@ class Runtime:
                 tool_call = ToolCall(name=block.name, input=block.input, id=block.id)
                 tool_result = run_tool_call(tool_ctx, tool_call)
                 results.append(tool_result.to_anthropic_tool_result())
-                self.sessions.append_tool_result(tool_result)
+                if self.sessions is not None:
+                    self.sessions.append_tool_result(tool_result)
                 if block.name == "todo":
                     turns_since_todo = -1
                 elif block.name == "compact":
@@ -111,7 +113,8 @@ class Runtime:
         before = estimate_tokens(self.history)
         self.history[:], transcript_path = compact(self.history, self._client, self.model_id, self.max_tokens // 4, focus)
         after = estimate_tokens(self.history)
-        self.sessions.append_compact_entry(focus=focus or "no focus", before=before, after=after, transcript_path=transcript_path)
+        if self.sessions is not None:
+            self.sessions.append_compact_entry(focus=focus or "no focus", before=before, after=after, transcript_path=transcript_path)
         
     def _micro_compact(self):
         micro_compact(self.history)
