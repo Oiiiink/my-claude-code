@@ -19,7 +19,7 @@ def truncate(text: str) -> tuple[str, int, bool]:
 class SessionsManager:
     def __init__(self, sessions_dir: Path, cwd: Path):
         self.sessions_dir = sessions_dir.resolve()
-        self.session_id = self._max_id(self.sessions_dir)
+        self.session_id = self._max_id(self.sessions_dir) + 1
         self.cwd = cwd.resolve()
         self.sessions_file = self.sessions_dir / f"session_{self.session_id}.jsonl"
         self.entries = []
